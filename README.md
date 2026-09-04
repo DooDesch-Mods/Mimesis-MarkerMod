@@ -62,3 +62,7 @@ Build with `dotnet build -c Release` in the mod folder. References are resolved 
 ## Credits / License
 
 Author: **DooDesch**. Released under the **MIT License** (Copyright (c) 2025 DooDesch). Source and releases: [github.com/DooDesch/Mimesis-MarkerMod](https://github.com/DooDesch/Mimesis-MarkerMod).
+
+## AI disclosure
+
+The mod icon is AI-generated. Code and configuration are hand-written.

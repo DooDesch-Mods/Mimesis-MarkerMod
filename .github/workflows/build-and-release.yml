@@ -43,15 +43,32 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      - name: Verify version in csproj matches the tag
+      - name: Determine version from the tag
         id: version-check
         run: |
+          # Die Version steht nur im Tag. Die csproj traegt bewusst nur den Platzhalter 0.0.0-dev,
+          # und der Build bekommt die echte Zahl weiter unten als globale MSBuild-Eigenschaft, die
+          # eine Projektdatei nicht ueberschreiben kann.
           TAG_VERSION="${GITHUB_REF#refs/tags/v}"
-          CS_VERSION=$(grep -oPm1 "(?<=<Version>)[^<]+" MarkerMod.csproj)
-          if [ "$TAG_VERSION" != "$CS_VERSION" ]; then
-            echo "Version mismatch: Tag version is $TAG_VERSION, but csproj version is $CS_VERSION"
+          if ! printf '%s' "$TAG_VERSION" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
+            echo "::error::Tag '$TAG_VERSION' ist keine Version der Form X.Y.Z. Der Ausloeser v* trifft auch vNext und v1.2.3-rc1."
             exit 1
           fi
+
+          # Eine echte Zahl in der csproj kann nur von Hand hineingeschrieben worden sein und weicht
+          # spaetestens beim naechsten Release ab.
+          CS_VERSION=$(grep -oPm1 '<Version[^>]*>\K[^<]+' MarkerMod.csproj || true)
+          if [ -n "$CS_VERSION" ] && [ "$CS_VERSION" != "0.0.0-dev" ]; then
+            echo "::error::MarkerMod.csproj traegt die Version '$CS_VERSION'. Sie kommt aus dem Tag; hier gehoert 0.0.0-dev hin."
+            exit 1
+          fi
+
+          MANIFEST_VERSION=$(grep -oPm1 '(?<="version_number": ")[^"]+' thunderstore/manifest.json || true)
+          if [ "$MANIFEST_VERSION" != "0.0.0" ]; then
+            echo "::error::thunderstore/manifest.json traegt version_number '$MANIFEST_VERSION'. Die CI schreibt die echte Zahl beim Release; im Repo gehoert 0.0.0 hin."
+            exit 1
+          fi
+
           echo "version=$TAG_VERSION" >> $GITHUB_OUTPUT
 
       - name: Extract release notes from CHANGELOG.md
@@ -91,7 +108,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Build the project
-        run: dotnet build --configuration Release /p:WorkspaceLibPath="${{ github.workspace }}/Workspace/lib" /p:GameManagedPath="${{ github.workspace }}/Workspace/lib/game" /p:GameAssemblyPath="${{ github.workspace }}/Workspace/lib/game" /p:MelonLoaderPath="${{ github.workspace }}/Workspace/lib/melonloader" /p:MimicAPIPath="${{ github.workspace }}/Workspace/MimicAPI"
+        run: dotnet build --configuration Release /p:Version="${{ steps.version-check.outputs.version }}" /p:WorkspaceLibPath="${{ github.workspace }}/Workspace/lib" /p:GameManagedPath="${{ github.workspace }}/Workspace/lib/game" /p:GameAssemblyPath="${{ github.workspace }}/Workspace/lib/game" /p:MelonLoaderPath="${{ github.workspace }}/Workspace/lib/melonloader" /p:MimicAPIPath="${{ github.workspace }}/Workspace/MimicAPI"
 
       - name: Prepare release directory
         run: |
