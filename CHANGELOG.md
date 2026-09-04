@@ -4,6 +4,11 @@ All notable changes to MarkerMod are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.5.2] - 2026-09-04
+
+### Changed
+- The mod is built against MIMESIS 0.3.1 and tested in a running game on that build. Marker and paintball behaviour does not change.
+
 ## [1.5.1] - 2026-06-22
 
 ### Fixed
