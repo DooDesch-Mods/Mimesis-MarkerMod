@@ -58,3 +58,7 @@ Built for Mimesis 0.3.0 / MelonLoader 0.7.3. Requires MimicAPI.
 ## Credits / License
 
 Author: **DooDesch**. Released under the **MIT License** (Copyright (c) 2025 DooDesch). Source: [github.com/DooDesch/Mimesis-MarkerMod](https://github.com/DooDesch/Mimesis-MarkerMod).
+
+## AI disclosure
+
+The mod icon is AI-generated. Code and configuration are hand-written.

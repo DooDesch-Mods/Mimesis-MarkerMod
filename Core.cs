@@ -7,7 +7,7 @@ using System;
 using UnityEngine.InputSystem;
 #endif
 
-[assembly: MelonInfo(typeof(MarkerMod.Core), "MarkerMod", "1.5.0", "DooDesch", null)]
+[assembly: MelonInfo(typeof(MarkerMod.Core), "MarkerMod", DooDesch.ModVersion.Current, "DooDesch", null)]
 [assembly: MelonGame("ReLUGames", "MIMESIS")]
 [assembly: MelonOptionalDependencies("MimicAPI")]
 // Stop MelonLoader from auto-applying our Harmony patches. We call PatchAll() ourselves in OnInitializeMelon,
