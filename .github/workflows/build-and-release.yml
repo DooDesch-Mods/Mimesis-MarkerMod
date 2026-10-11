@@ -384,7 +384,7 @@ jobs:
           fi
           API=https://api.nexusmods.com/v3
           curl --fail-with-body --silent --show-error -H "apikey: $NEXUS_KEY" "$API/mod-file-versions/$FILE_UID" > source.json
-          jq -e --arg group "$FILE_7545473" '.data.file.id == $group' source.json
+          jq -e --arg group "$FILE_GROUP_ID" '.data.file.id == $group' source.json
           curl --fail-with-body --silent --show-error -H "apikey: $NEXUS_KEY" "$API/mod-file-versions/39329015529509" > mimicapi.json
           jq -e '.data.id == "39329015529509" and .data.version == "0.4.2"' mimicapi.json
           curl --fail-with-body --silent --show-error -H "apikey: $NEXUS_KEY" "$API/mod-file-versions/$FILE_UID/dependencies/ranges" > before.json
@@ -396,7 +396,7 @@ jobs:
           diff <(jq -S . required.json) <(jq -S . confirmed.json)
           curl --fail-with-body --silent --show-error -H "apikey: $NEXUS_KEY" "$API/mod-file-versions/$FILE_UID/dependencies/ranges/materialized" > resolved.json
           jq -e '.. | objects | select(.id? == "39329015529509")' resolved.json
-          curl --fail-with-body --silent --show-error -H "apikey: $NEXUS_KEY" "$API/mod-files/$FILE_7545473" > mod-file.json
+          curl --fail-with-body --silent --show-error -H "apikey: $NEXUS_KEY" "$API/mod-files/$FILE_GROUP_ID" > mod-file.json
           echo "Nexus file $FILE_UID requires MimicAPI 0.4.2 or later; existing file requirements retained." | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Save Nexus requirement receipts
