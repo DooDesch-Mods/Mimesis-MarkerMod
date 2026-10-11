@@ -7,6 +7,10 @@ on:
         description: Published mod version to repackage for Nexus
         required: true
         type: string
+      existing_file_uid:
+        description: Set requirements on this existing Nexus file without uploading
+        required: false
+        type: string
   push:
     tags:
       - "v*"
@@ -17,6 +21,7 @@ permissions:
 
 jobs:
   build:
+    if: inputs.existing_file_uid == ''
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version-check.outputs.version }}
@@ -321,6 +326,8 @@ jobs:
             Mods
 
   nexus:
+    outputs:
+      file_uid: ${{ steps.nexus-upload.outputs.file_uid }}
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -354,3 +361,48 @@ jobs:
             exit 1
           fi
           echo "Nexus file UID: $FILE_UID" >> "$GITHUB_STEP_SUMMARY"
+
+  nexus-requirements:
+    needs: nexus
+    if: ${{ always() && !cancelled() && (needs.nexus.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.existing_file_uid != '')) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require the separate MimicAPI download
+        env:
+          NEXUS_KEY: ${{ secrets.NEXUSMODS_API_KEY }}
+          FILE_UID: ${{ needs.nexus.outputs.file_uid || inputs.existing_file_uid }}
+          FILE_GROUP_ID: "7545473"
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "$FILE_UID" | grep -Eq '^[1-9][0-9]*$'; then
+            echo "::error::Invalid Nexus file UID: $FILE_UID"
+            exit 1
+          fi
+          if [ -z "$NEXUS_KEY" ]; then
+            echo "::error::NEXUSMODS_API_KEY is missing"
+            exit 1
+          fi
+          API=https://api.nexusmods.com/v3
+          curl --fail-with-body --silent --show-error -H "apikey: $NEXUS_KEY" "$API/mod-file-versions/$FILE_UID" > source.json
+          jq -e --arg group "$FILE_7545473" '.data.file.id == $group' source.json
+          curl --fail-with-body --silent --show-error -H "apikey: $NEXUS_KEY" "$API/mod-file-versions/39329015529509" > mimicapi.json
+          jq -e '.data.id == "39329015529509" and .data.version == "0.4.2"' mimicapi.json
+          curl --fail-with-body --silent --show-error -H "apikey: $NEXUS_KEY" "$API/mod-file-versions/$FILE_UID/dependencies/ranges" > before.json
+          jq '{dependency_definitions: [.dependency_definitions[] | {ranges: [.ranges[] | {min_version_id: .min_version.id, max_version_id: (.max_version.id // null)}]}]}' before.json > existing.json
+          jq '.dependency_definitions |= (if any(.[]; any(.ranges[]; .min_version_id == "39329015529509" and .max_version_id == null)) then . else . + [{ranges: [{min_version_id: "39329015529509", max_version_id: null}]}] end)' existing.json > required.json
+          curl --fail-with-body --silent --show-error -X PUT -H "apikey: $NEXUS_KEY" -H 'Content-Type: application/json' --data-binary @required.json "$API/mod-file-versions/$FILE_UID/dependencies/ranges"
+          curl --fail-with-body --silent --show-error -H "apikey: $NEXUS_KEY" "$API/mod-file-versions/$FILE_UID/dependencies/ranges" > after.json
+          jq '{dependency_definitions: [.dependency_definitions[] | {ranges: [.ranges[] | {min_version_id: .min_version.id, max_version_id: (.max_version.id // null)}]}]}' after.json > confirmed.json
+          diff <(jq -S . required.json) <(jq -S . confirmed.json)
+          curl --fail-with-body --silent --show-error -H "apikey: $NEXUS_KEY" "$API/mod-file-versions/$FILE_UID/dependencies/ranges/materialized" > resolved.json
+          jq -e '.. | objects | select(.id? == "39329015529509")' resolved.json
+          curl --fail-with-body --silent --show-error -H "apikey: $NEXUS_KEY" "$API/mod-files/$FILE_7545473" > mod-file.json
+          echo "Nexus file $FILE_UID requires MimicAPI 0.4.2 or later; existing file requirements retained." | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Save Nexus requirement receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-requirements
+          path: '*.json'
+          if-no-files-found: error
