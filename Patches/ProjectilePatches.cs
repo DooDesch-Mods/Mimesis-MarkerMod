@@ -32,8 +32,9 @@ namespace MarkerMod.Patches
             {
                 return MarkerPreferences.PreventPaintballSelfDamage;
             }
-            catch
+            catch (Exception ex)
             {
+                MelonLogger.Warning($"[PaintballSelfDamage] Failed to read preferences for self-hit grace patch; patch skipped. {ex}");
                 return false;
             }
         }
@@ -114,7 +115,9 @@ namespace MarkerMod.Patches
         [HarmonyPrefix]
         public static void Prefix(FieldSkillObject __instance, FieldSkillHitInputData hitInfo)
         {
-            if (!MarkerPreferences.PreventPaintballSelfDamage || hitInfo?.Targets == null || hitInfo.Targets.Count == 0)
+            if (!MarkerPreferences.PreventPaintballSelfDamage
+                || !PaintPersistenceManager.IsPaintFieldSkill(__instance.MasterID)
+                || hitInfo?.Targets == null || hitInfo.Targets.Count == 0)
             {
                 return;
             }
@@ -167,8 +170,9 @@ namespace MarkerMod.Patches
             {
                 return MarkerPreferences.AllowLongPaintballThrows;
             }
-            catch
+            catch (Exception ex)
             {
+                MelonLogger.Warning($"[PaintballThrowRange] Failed to read preferences for navmesh patch; patch skipped. {ex}");
                 return false;
             }
         }

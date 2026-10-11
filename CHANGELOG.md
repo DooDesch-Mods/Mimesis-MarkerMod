@@ -4,6 +4,12 @@ All notable changes to MarkerMod are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.5.3] - 2026-10-11
+
+- Paintball self-damage protection leaves healing fields unchanged.
+- Built against MIMESIS 0.3.2 with the updated MimicAPI fork.
+- Preference errors now identify the projectile patch that was skipped.
+
 ## [1.5.2] - 2026-09-04
 
 ### Changed

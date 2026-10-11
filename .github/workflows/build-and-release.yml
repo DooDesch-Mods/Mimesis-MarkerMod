@@ -144,29 +144,16 @@ jobs:
           name: MarkerMod
           path: "MarkerMod_${{ steps.version-check.outputs.version }}.zip"
 
-      - name: Prepare Nexus bundle (includes MimicAPI.dll)
+      - name: Prepare Nexus bundle
         run: |
-          # Nexus has no dependency resolution like Thunderstore, so the runtime dependency
-          # MimicAPI.dll must ship inside the Nexus archive. (Thunderstore keeps using the
-          # NeoMimicry-MimicAPI dependency instead, to avoid loading two copies of MimicAPI.)
-          mkdir -p nexus
-          cp bin/Release/netstandard2.1/MarkerMod.dll nexus/
-          MIMIC_DLL=$(find "${{ github.workspace }}/Workspace/MimicAPI" -path '*/bin/Release/*/MimicAPI.dll' | head -n1)
-          if [ -z "$MIMIC_DLL" ]; then
-            # Some MimicAPI csproj revisions emit to bin/<tfm> without a Release subfolder.
-            MIMIC_DLL=$(find "${{ github.workspace }}/Workspace/MimicAPI" -path '*/bin/*/MimicAPI.dll' | head -n1)
-          fi
-          if [ -z "$MIMIC_DLL" ]; then
-            echo "::error::MimicAPI.dll not found - refusing to ship an incomplete Nexus bundle" >&2
-            exit 1
-          fi
-          cp "$MIMIC_DLL" nexus/
-          if [ -f "thunderstore/README.md" ]; then
-            cp thunderstore/README.md nexus/ || true
-          fi
-          zip -j "MarkerMod_${{ steps.version-check.outputs.version }}_nexus.zip" nexus/*
-          echo "Nexus bundle contents:"
-          unzip -l "MarkerMod_${{ steps.version-check.outputs.version }}_nexus.zip"
+          mkdir -p nexus/Mods
+          cp bin/Release/netstandard2.1/MarkerMod.dll nexus/Mods/
+          cp README.md LICENSE.md CHANGELOG.md nexus/
+          cp Workspace/MimicAPI/MimicAPI/bin/Release/netstandard2.1/MimicAPI.dll nexus/Mods/
+          mkdir -p nexus/MimicAPI
+          cp Workspace/MimicAPI/LICENSE Workspace/MimicAPI/README.md nexus/MimicAPI/
+          (cd nexus && zip -r "../MarkerMod_${{ steps.version-check.outputs.version }}_nexus.zip" .)
+          unzip -t "MarkerMod_${{ steps.version-check.outputs.version }}_nexus.zip"
 
       - name: Upload Nexus ZIP
         uses: actions/upload-artifact@v4
@@ -191,11 +178,18 @@ jobs:
           unzip -q "MarkerMod_${{ needs.build.outputs.version }}.zip" -d release/
           ls -la release/
 
+      - name: Download Nexus bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: MarkerMod-nexus
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           generate_release_notes: true
-          files: release/MarkerMod.dll
+          files: |
+            release/MarkerMod.dll
+            MarkerMod_${{ needs.build.outputs.version }}_nexus.zip
           body: |
             ## Changes in ${{ needs.build.outputs.version }}
 

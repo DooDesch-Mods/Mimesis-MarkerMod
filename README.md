@@ -5,7 +5,7 @@
 
 > Turn paintballs into permanent dungeon markers. Puddles and the footprints you leave normally vanish almost instantly - MarkerMod makes them persist so you can mark rooms, paths and dead ends, with optional color cycling and infinite paintballs.
 
-![Version](https://img.shields.io/badge/version-1.4.0-blue)
+![Version](https://img.shields.io/badge/version-1.5.3-blue)
 ![Game](https://img.shields.io/badge/game-MIMESIS-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 ![Status](https://img.shields.io/badge/status-working-brightgreen)
@@ -22,14 +22,16 @@
 
 | Component | Version |
 | --- | --- |
-| MIMESIS | 0.3.0 (current Steam build) |
+| MIMESIS | 0.3.2 |
 | MelonLoader | 0.7.3+ |
-| MimicAPI | Required - [NeoMimicry/MimicAPI](https://github.com/NeoMimicry/MimicAPI) |
+| MimicAPI | Required - MimicAPI 0.4.2, [DooDesch fork](https://github.com/DooDesch/MimicAPI), included in the Nexus archive |
+
+The Nexus archive includes the maintained MimicAPI 0.4.2 fork. The Thunderstore manifest still refers to the original NeoMimicry package.
 
 ## Installation
 
 - **Recommended:** install through a Thunderstore mod manager (r2modman / Gale). MimicAPI is pulled in automatically as a dependency.
-- **Manual:** download `MarkerMod.dll` from the [Releases](../../releases) page, make sure `MimicAPI.dll` is also installed, and drop both into `MIMESIS/Mods/`. Launch the game once to generate the config file at `UserData/MelonPreferences.cfg`.
+- **Manual:** download `MarkerMod.dll` from the [Releases](https://github.com/DooDesch-Mods/Mimesis-MarkerMod/releases) page, make sure `MimicAPI.dll` is also installed, and drop both into `MIMESIS/Mods/`. Launch the game once to generate the config file at `UserData/MelonPreferences.cfg`.
 
 ## Configuration
 
@@ -38,7 +40,7 @@ Stored in `UserData/MelonPreferences.cfg` under the `MarkerMod` category.
 | Option | Description | Default | Values/Range |
 | --- | --- | --- | --- |
 | `keepFootprints` | Keep paint footprints after puddles dry. When enabled, footprints persist even after the puddles have dried up. | `true` | `true` / `false` |
-| `keepPuddles` | Keep spawned paint puddles as well. When enabled, both footprints and puddles persist. | `false` | `true` / `false` |
+| `keepPuddles` | Keep spawned paint puddles for the configured lifetime. Footprints are controlled separately by `keepFootprints`. | `false` | `true` / `false` |
 | `permanentLifetimeSeconds` | Lifetime in seconds for persistent paint - how long marks remain visible. Values below 1 are clamped up to 1 second at runtime. | `86400` | Any positive number of seconds (min 1; default 86400 = 24h) |
 | `infinitePaintballs` | Paintballs are not consumed when thrown, so you never run out. | `false` | `true` / `false` |
 | `enablePaintballColorChange` | Allow changing paintball color by right-clicking. Cycles through Red, Yellow, Green, Blue, Orange, Purple, White, Black. | `true` | `true` / `false` |
@@ -53,7 +55,7 @@ Stored in `UserData/MelonPreferences.cfg` under the `MarkerMod` category.
 
 ## Compatibility
 
-Built for Mimesis 0.3.0 / MelonLoader 0.7.3. Requires MimicAPI.
+Built for Mimesis 0.3.2 / MelonLoader 0.7.3. Requires MimicAPI.
 
 ## Building (developers)
 
@@ -61,8 +63,8 @@ Build with `dotnet build -c Release` in the mod folder. References are resolved 
 
 ## Credits / License
 
-Author: **DooDesch**. Released under the **MIT License** (Copyright (c) 2025 DooDesch). Source and releases: [github.com/DooDesch/Mimesis-MarkerMod](https://github.com/DooDesch/Mimesis-MarkerMod).
+Author: **DooDesch**. Released under the **MIT License** (Copyright (c) 2025 DooDesch). Source and releases: [github.com/DooDesch-Mods/Mimesis-MarkerMod](https://github.com/DooDesch-Mods/Mimesis-MarkerMod).
 
 ## AI disclosure
 
-The mod icon is AI-generated. Code and configuration are hand-written.
+The mod icon is AI-generated.
