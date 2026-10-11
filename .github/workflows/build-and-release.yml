@@ -1,6 +1,12 @@
 name: Build and Release on Tag
 
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Published mod version to repackage for Nexus
+        required: true
+        type: string
   push:
     tags:
       - "v*"
@@ -23,6 +29,7 @@ jobs:
           fetch-depth: 0
 
       - name: Checkout Workspace repository
+        if: github.event_name == 'push'
         uses: actions/checkout@v4
         with:
           repository: ${{ github.repository_owner }}/Mimesis-Workspace
@@ -30,6 +37,7 @@ jobs:
           ssh-key: ${{ secrets.WORKSPACE_TOKEN }}
 
       - name: Checkout MimicAPI repository
+        if: github.event_name == 'push'
         uses: actions/checkout@v4
         with:
           # MimicAPI is a public fork that lives on the personal DooDesch account, not the
@@ -39,17 +47,23 @@ jobs:
           path: Workspace/MimicAPI
 
       - name: Set up .NET
+        if: github.event_name == 'push'
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
 
       - name: Determine version from the tag
         id: version-check
+        env:
+          REPACKAGE_VERSION: ${{ inputs.version }}
         run: |
           # Die Version steht nur im Tag. Die csproj traegt bewusst nur den Platzhalter 0.0.0-dev,
           # und der Build bekommt die echte Zahl weiter unten als globale MSBuild-Eigenschaft, die
           # eine Projektdatei nicht ueberschreiben kann.
           TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            TAG_VERSION="$REPACKAGE_VERSION"
+          fi
           if ! printf '%s' "$TAG_VERSION" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
             echo "::error::Tag '$TAG_VERSION' ist keine Version der Form X.Y.Z. Der Ausloeser v* trifft auch vNext und v1.2.3-rc1."
             exit 1
@@ -108,7 +122,24 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Build the project
+        if: github.event_name == 'push'
         run: dotnet build MarkerMod.csproj --configuration Release /p:Version="${{ steps.version-check.outputs.version }}" /p:WorkspaceLibPath="${{ github.workspace }}/Workspace/lib" /p:GameManagedPath="${{ github.workspace }}/Workspace/lib/game" /p:GameAssemblyPath="${{ github.workspace }}/Workspace/lib/game" /p:MelonLoaderPath="${{ github.workspace }}/Workspace/lib/melonloader" /p:MimicAPIPath="${{ github.workspace }}/Workspace/MimicAPI"
+
+      - name: Download the published DLL for Nexus
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version-check.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p bin/Release/netstandard2.1
+          gh release download "v$VERSION" --repo "$GITHUB_REPOSITORY" --pattern "MarkerMod.dll" --dir bin/Release/netstandard2.1
+          DIGEST=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$VERSION" --jq '.assets[] | select(.name == "MarkerMod.dll") | .digest')
+          if ! printf '%s' "$DIGEST" | grep -Eq '^sha256:[0-9a-f]{64}$'; then
+            echo "::error::Published MarkerMod.dll has no valid SHA256 digest: $DIGEST"
+            exit 1
+          fi
+          printf '%s  %s\n' "${DIGEST#sha256:}" 'bin/Release/netstandard2.1/MarkerMod.dll' | sha256sum --check
 
       - name: Prepare release directory
         run: |
@@ -149,9 +180,6 @@ jobs:
           mkdir -p nexus/Mods
           cp bin/Release/netstandard2.1/MarkerMod.dll nexus/Mods/
           cp README.md LICENSE.md CHANGELOG.md nexus/
-          cp Workspace/MimicAPI/MimicAPI/bin/Release/netstandard2.1/MimicAPI.dll nexus/Mods/
-          mkdir -p nexus/MimicAPI
-          cp Workspace/MimicAPI/LICENSE Workspace/MimicAPI/README.md nexus/MimicAPI/
           (cd nexus && zip -r "../MarkerMod_${{ steps.version-check.outputs.version }}_nexus.zip" .)
           unzip -t "MarkerMod_${{ steps.version-check.outputs.version }}_nexus.zip"
 
@@ -162,6 +190,7 @@ jobs:
           path: "MarkerMod_${{ steps.version-check.outputs.version }}_nexus.zip"
 
   release:
+    if: github.event_name == 'push'
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -259,6 +288,7 @@ jobs:
             && echo "announced $NAME $VERSION"
 
   thunderstore:
+    if: github.event_name == 'push'
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -294,12 +324,13 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download Nexus bundle (MarkerMod.dll + MimicAPI.dll)
+      - name: Download Nexus bundle (MarkerMod.dll)
         uses: actions/download-artifact@v4
         with:
           name: MarkerMod-nexus
 
       - name: Upload to Nexus Mods
+        id: nexus-upload
         uses: Nexus-Mods/upload-action@v1.0.0-beta.7
         with:
           api_key: ${{ secrets.NEXUSMODS_API_KEY }}
@@ -307,6 +338,19 @@ jobs:
           filename: "MarkerMod_${{ needs.build.outputs.version }}_nexus.zip"
           version: ${{ needs.build.outputs.version }}
           display_name: "MarkerMod ${{ needs.build.outputs.version }}"
-          description: ${{ needs.build.outputs.notes_bbcode }}
+          description: |
+            [b]Requires [url=https://www.nexusmods.com/mimesis/mods/11]MimicAPI 0.4.2[/url], installed separately.[/b]
+
+            ${{ needs.build.outputs.notes_bbcode }}
+          show_requirements_pop_up: true
           file_category: main
           archive_existing_file: true
+      - name: Record the Nexus upload
+        env:
+          FILE_UID: ${{ steps.nexus-upload.outputs.file_uid }}
+        run: |
+          if ! printf '%s' "$FILE_UID" | grep -Eq '^[1-9][0-9]*$'; then
+            echo "::error::Nexus upload did not return a valid file UID: $FILE_UID"
+            exit 1
+          fi
+          echo "Nexus file UID: $FILE_UID" >> "$GITHUB_STEP_SUMMARY"
