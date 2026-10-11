@@ -19,43 +19,28 @@ namespace MarkerMod.Patches
     // their feet and spawns the puddle under them (it never flies, and used to damage them). Forcing
     // SelfHitGraceDistance to a huge value keeps `excludeActor` = `_parentActor` for the whole flight: the ball passes
     // through the thrower and flies to where it was aimed, and can never self-hit. Gated behind the
-    // PreventPaintballSelfDamage preference (default ON) via Prepare(); when off, the IL is left untouched.
+    // effective host preference at runtime; when off, the original grace distance is used.
     [HarmonyPatch(typeof(VProjectileObject), "HandlePhysicsProj")]
     internal static class VProjectileSelfHitGracePatch
     {
         private const float HugeGraceDistance = 1_000_000_000f;
 
-        [HarmonyPrepare]
-        public static bool Prepare()
-        {
-            try
-            {
-                return MarkerPreferences.PreventPaintballSelfDamage;
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"[PaintballSelfDamage] Failed to read preferences for self-hit grace patch; patch skipped. {ex}");
-                return false;
-            }
-        }
+        public static float ResolveGraceDistance(float originalDistance)
+            => MarkerPreferences.PreventPaintballSelfDamage ? HugeGraceDistance : originalDistance;
 
         [HarmonyTranspiler]
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             foreach (CodeInstruction instruction in instructions)
             {
+                yield return instruction;
+
                 if (instruction.opcode == OpCodes.Ldfld
                     && instruction.operand is System.Reflection.FieldInfo field
                     && field.Name == "SelfHitGraceDistance")
                 {
-                    // Replace `_projectileInfo.SelfHitGraceDistance` (ldfld) with a huge constant: pop the
-                    // _projectileInfo instance reference, then push the large value.
-                    yield return new CodeInstruction(OpCodes.Pop);
-                    yield return new CodeInstruction(OpCodes.Ldc_R4, HugeGraceDistance);
-                }
-                else
-                {
-                    yield return instruction;
+                    yield return new CodeInstruction(OpCodes.Call,
+                        AccessTools.Method(typeof(VProjectileSelfHitGracePatch), nameof(ResolveGraceDistance)));
                 }
             }
         }
@@ -153,50 +138,41 @@ namespace MarkerMod.Patches
     // Bug 2 (experimental, opt-in): the 0.3.0 navmesh clamp force-lands a thrown projectile as soon as it crosses
     // a non-navmesh point (the "invisible wall"). Widening the navmesh-snap search radius lets projectiles bridge
     // small non-navmesh gaps instead of stopping short. This is server-authoritative and affects all projectiles,
-    // so it is gated behind a default-off preference via Prepare(): when disabled the transpiler is NOT applied at
-    // all (the method IL stays untouched), which keeps the default behaviour completely safe.
+    // so the runtime helper returns the original radius unless the effective host preference enables it.
     [HarmonyPatch(typeof(VProjectileObject), "HandlePhysicsProj")]
     internal static class VProjectileNavmeshPatch
     {
         private const float WidenedSnapRadius = 25f;
 
-        [HarmonyPrepare]
-        public static bool Prepare()
-        {
-            // Runs at patch time, which can be before preferences are initialized (MelonLoader auto-patches the
-            // assembly before OnInitializeMelon). The null-safe getter returns false in that case, so the patch is
-            // skipped at auto-patch time and re-evaluated by the manual PatchAll() after Initialize().
-            try
-            {
-                return MarkerPreferences.AllowLongPaintballThrows;
-            }
-            catch (Exception ex)
-            {
-                MelonLogger.Warning($"[PaintballThrowRange] Failed to read preferences for navmesh patch; patch skipped. {ex}");
-                return false;
-            }
-        }
+        public static float ResolveSnapRadius(float originalRadius)
+            => MarkerPreferences.AllowLongPaintballThrows ? WidenedSnapRadius : originalRadius;
 
         [HarmonyTranspiler]
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             List<CodeInstruction> codes = new List<CodeInstruction>(instructions);
 
-            for (int i = 1; i < codes.Count; i++)
+            for (int i = 0; i < codes.Count; i++)
             {
                 CodeInstruction code = codes[i];
-                bool isCall = code.opcode == OpCodes.Call || code.opcode == OpCodes.Callvirt;
-                if (isCall
-                    && code.operand is System.Reflection.MethodInfo method
-                    && method.Name == "GetNearestPointOnNavMesh"
-                    && codes[i - 1].opcode == OpCodes.Ldc_R4)
+                if (code.opcode != OpCodes.Ldc_R4 || i + 1 >= codes.Count)
                 {
-                    // The float immediately before the call is the navmesh-snap radius argument.
-                    codes[i - 1].operand = WidenedSnapRadius;
+                    yield return code;
+                    continue;
+                }
+
+                CodeInstruction next = codes[i + 1];
+                bool isCall = next.opcode == OpCodes.Call || next.opcode == OpCodes.Callvirt;
+
+                yield return code;
+                if (isCall
+                    && next.operand is System.Reflection.MethodInfo method
+                    && method.Name == "GetNearestPointOnNavMesh")
+                {
+                    yield return new CodeInstruction(OpCodes.Call,
+                        AccessTools.Method(typeof(VProjectileNavmeshPatch), nameof(ResolveSnapRadius)));
                 }
             }
-
-            return codes;
         }
     }
 

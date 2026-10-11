@@ -5,7 +5,7 @@
 
 > Turn paintballs into permanent dungeon markers. Puddles and the footprints you leave normally vanish almost instantly - MarkerMod makes them persist so you can mark rooms, paths and dead ends, with optional color cycling and infinite paintballs.
 
-![Version](https://img.shields.io/badge/version-1.5.3-blue)
+![Version](https://img.shields.io/badge/version-1.5.5-blue)
 ![Game](https://img.shields.io/badge/game-MIMESIS-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 ![Status](https://img.shields.io/badge/status-working-brightgreen)
@@ -15,7 +15,7 @@
 - **Keep footprints** - the paint footprints you leave after walking through a puddle persist instead of fading away (on by default).
 - **Keep puddles** - the spawned paint puddles themselves also stay instead of drying up (off by default).
 - **Configurable lifetime** - a single setting controls how long persistent paint stays visible, in seconds (default 86400 = 24 hours, minimum 1 second).
-- **Paintball color cycling** - while holding a paintball, right-click to cycle its color through Red, Yellow, Green, Blue, Orange, Purple, White, Black and back to default. The color applies to both the held item and the next throw (on by default).
+- **Paintball color cycling** - while holding a paintball, right-click to cycle its color through Red, Yellow, Green, Blue, Orange, Purple, White, Black and back to default. The color applies locally to the held item and paint effects (on by default).
 - **Infinite paintballs** - paintballs are not consumed when thrown, so you never run out of markers (off by default).
 
 ## Requirements
@@ -37,6 +37,8 @@ For Nexus, install [MimicAPI 0.4.2](https://www.nexusmods.com/mimesis/mods/11) s
 
 Stored in `UserData/MelonPreferences.cfg` under the `MarkerMod` category.
 
+Each Steam lobby uses a snapshot of the host's `infinitePaintballs`, `preventPaintballSelfDamage` and `allowLongPaintballThrows` settings. If the host does not have MarkerMod, these gameplay options use vanilla behavior. Footprints, puddle display, display lifetime and color cycling stay local. Client configuration is not overwritten. Change the host's gameplay configuration before creating the next lobby.
+
 | Option | Description | Default | Values/Range |
 | --- | --- | --- | --- |
 | `keepFootprints` | Keep paint footprints after puddles dry. When enabled, footprints persist even after the puddles have dried up. | `true` | `true` / `false` |
@@ -44,14 +46,16 @@ Stored in `UserData/MelonPreferences.cfg` under the `MarkerMod` category.
 | `permanentLifetimeSeconds` | Lifetime in seconds for persistent paint - how long marks remain visible. Values below 1 are clamped up to 1 second at runtime. | `86400` | Any positive number of seconds (min 1; default 86400 = 24h) |
 | `infinitePaintballs` | Paintballs are not consumed when thrown, so you never run out. | `false` | `true` / `false` |
 | `enablePaintballColorChange` | Allow changing paintball color by right-clicking. Cycles through Red, Yellow, Green, Blue, Orange, Purple, White, Black. | `true` | `true` / `false` |
+| `preventPaintballSelfDamage` | Prevent projectile self-hits and self-hits from paint fields. Host rule; the projectile protection also covers other projectiles. | `true` | `true` / `false` |
+| `allowLongPaintballThrows` | Experimental host rule: increase the navmesh search radius for all physics projectiles to reduce early landings. | `false` | `true` / `false` |
 
 ## Usage
 
 1. Hold a paintball and throw it to create a puddle.
 2. Walk through wet paint to leave footprints.
 3. With `keepFootprints` / `keepPuddles` enabled, the marks persist for the configured lifetime so you can navigate complex dungeons.
-4. Right-click while holding a paintball to cycle its color (Red, Yellow, Green, Blue, Orange, Purple, White, Black, then back to default); the chosen color applies to the next throw.
-5. With `infinitePaintballs` enabled, paintballs are never consumed when thrown.
+4. Right-click while holding a paintball to cycle its local color (Red, Yellow, Green, Blue, Orange, Purple, White, Black, then back to default).
+5. With the host's `infinitePaintballs` enabled, paintballs are not consumed when thrown.
 
 ## Compatibility
 
