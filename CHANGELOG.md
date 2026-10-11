@@ -4,6 +4,12 @@ All notable changes to MarkerMod are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.5.5] - 2026-10-11
+
+- Paintball consumption, self-hit protection and the experimental throw-range option use the host's settings for each Steam lobby.
+- Projectile patches select their behavior at runtime, so host rules apply without repatching. A host without MarkerMod uses vanilla gameplay.
+- Paint display, lifetime and color cycling stay local; saved client configuration is preserved.
+
 ## [1.5.4] - 2026-10-11
 
 - Paintball self-damage protection leaves healing fields unchanged.

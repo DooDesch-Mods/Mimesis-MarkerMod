@@ -1,4 +1,5 @@
 using System;
+using DooDesch;
 using MelonLoader;
 using UnityEngine;
 
@@ -16,6 +17,10 @@ namespace MarkerMod.Config
 		private static MelonPreferences_Entry<bool> _enablePaintballColorChange;
 		private static MelonPreferences_Entry<bool> _preventPaintballSelfDamage;
 		private static MelonPreferences_Entry<bool> _allowLongPaintballThrows;
+		private static HostSettings _hostSettings;
+		private static HostSetting<bool> _hostInfinitePaintballs;
+		private static HostSetting<bool> _hostPreventPaintballSelfDamage;
+		private static HostSetting<bool> _hostAllowLongPaintballThrows;
 
 		internal static void Initialize()
 		{
@@ -32,6 +37,11 @@ namespace MarkerMod.Config
 			_enablePaintballColorChange = CreateEntry("enablePaintballColorChange", true, "Enable Paintball Color Change", "Allow changing paintball color by right-clicking. When enabled, you can cycle through colors (Red, Yellow, Green, Blue, Orange, Purple, White, Black) by right-clicking while holding a paintball. Default: true");
 			_preventPaintballSelfDamage = CreateEntry("preventPaintballSelfDamage", true, "Prevent Paintball Self Damage", "Stop your own thrown paintball from hitting and damaging you. In game 0.3.0 projectiles can hit their thrower after a short distance; this excludes you from your own paintball hits. Default: true");
 			_allowLongPaintballThrows = CreateEntry("allowLongPaintballThrows", false, "Allow Long Paintball Throws (experimental)", "Reduce the navmesh clamp that makes thrown paintballs stop early at an 'invisible wall'. Experimental and server-authoritative (host only) - verify in-game before relying on it. Default: false");
+
+			_hostSettings = new HostSettings(CategoryId);
+			_hostInfinitePaintballs = _hostSettings.Register(_infinitePaintballs, false);
+			_hostPreventPaintballSelfDamage = _hostSettings.Register(_preventPaintballSelfDamage, false);
+			_hostAllowLongPaintballThrows = _hostSettings.Register(_allowLongPaintballThrows, false);
 		}
 
 		private static MelonPreferences_Entry<T> CreateEntry<T>(string identifier, T defaultValue, string displayName, string description = null)
@@ -44,23 +54,20 @@ namespace MarkerMod.Config
 			return _category.CreateEntry(identifier, defaultValue, displayName, description);
 		}
 
-		// Getters are null-safe: MelonLoader auto-applies this assembly's Harmony patches during melon
-		// registration, which runs BEFORE OnInitializeMelon (and thus before Initialize()). Any patch-time
-		// preference read (e.g. a [HarmonyPrepare]) would otherwise hit a null entry. Defaults match the
-		// configured defaults so pre-init reads behave as "feature off / safe".
+		// Gameplay settings use vanilla when the joined host has no MarkerMod snapshot.
 		internal static bool KeepFootprints => _keepFootprints?.Value ?? true;
 
 		internal static bool KeepPuddles => _keepPuddles?.Value ?? false;
 
 		internal static float PermanentLifetimeSeconds => Mathf.Max(1f, _lifetimeSeconds?.Value ?? 86400f);
 
-		internal static bool InfinitePaintballs => _infinitePaintballs?.Value ?? false;
+		internal static bool InfinitePaintballs => _hostInfinitePaintballs?.Value ?? false;
 
 		internal static bool EnablePaintballColorChange => _enablePaintballColorChange?.Value ?? true;
 
-		internal static bool PreventPaintballSelfDamage => _preventPaintballSelfDamage?.Value ?? true;
+		internal static bool PreventPaintballSelfDamage => _hostPreventPaintballSelfDamage?.Value ?? false;
 
-		internal static bool AllowLongPaintballThrows => _allowLongPaintballThrows?.Value ?? false;
+		internal static bool AllowLongPaintballThrows => _hostAllowLongPaintballThrows?.Value ?? false;
 	}
 }
 
