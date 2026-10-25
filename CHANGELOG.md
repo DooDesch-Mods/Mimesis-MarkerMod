@@ -4,6 +4,11 @@ All notable changes to MarkerMod are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.5.6] - 2026-10-25
+
+- Restore footprints when walking through your own paint puddles with self-damage protection enabled. Reported by life520.
+- Clarify the separate puddle and footprint options and the host's control of infinite paintballs. No new save is needed.
+
 ## [1.5.5] - 2026-10-11
 
 - Paintball consumption, self-hit protection and the experimental throw-range option use the host's settings for each Steam lobby.

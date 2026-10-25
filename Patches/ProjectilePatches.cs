@@ -83,11 +83,8 @@ namespace MarkerMod.Patches
         }
     }
 
-    // Bug 2 (paint splat): the splat is a server-side FieldSkillObject spawned at the projectile's impact point
-    // (VProjectileObject.ProcessLandingAndSpawn -> VRoom.SpawnFieldSkill). Its hit scan (FieldSkillObject.Update ->
-    // OnHit -> ProcessMutableValue) does not exclude the caster, so a straight-up throw - where the ball falls back
-    // onto the thrower - would let the splat damage/contaminate them. Remove the caster from the splat's hit targets.
-    // The caster is _parentSkillContext.ContextInfo.Creature.ObjectID (note: Creature is a FIELD, not a property).
+    // Keep zero-value paint hits: they apply the paint status that produces footprints.
+    // Only exclude the caster from paint sequences that also change a stat.
     [HarmonyPatch(typeof(FieldSkillObject), nameof(FieldSkillObject.OnHit))]
     internal static class FieldSkillSelfHitPatch
     {
@@ -102,6 +99,7 @@ namespace MarkerMod.Patches
         {
             if (!MarkerPreferences.PreventPaintballSelfDamage
                 || !PaintPersistenceManager.IsPaintFieldSkill(__instance.MasterID)
+                || hitInfo?.SkillSequenceInfo == null || hitInfo.SkillSequenceInfo.MutableValue == 0
                 || hitInfo?.Targets == null || hitInfo.Targets.Count == 0)
             {
                 return;
