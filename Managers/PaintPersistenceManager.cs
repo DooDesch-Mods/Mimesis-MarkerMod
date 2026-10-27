@@ -136,6 +136,8 @@ namespace MarkerMod.Managers
             return fieldSkillMasterID == PaintspotMasterId || PaintballMasterIds.Contains(fieldSkillMasterID);
         }
 
+        internal static bool IsPaintPuddle(int fieldSkillMasterID) => PaintballMasterIds.Contains(fieldSkillMasterID);
+
         private static FieldSkillMemberInfo ResolveMemberInfo(FieldSkillObjectInfo info)
         {
             Hub hub = Hub.s;

@@ -31,7 +31,7 @@ namespace MarkerMod.Config
 
 			_category = MelonPreferences.CreateCategory(CategoryId, "Marker Mod");
 			_keepFootprints = CreateEntry("keepFootprints", true, "Keep Footprints", "Keep paint footprints after puddles dry. When enabled, paint footprints will persist even after the paint puddles have dried up. Default: true");
-			_keepPuddles = CreateEntry("keepPuddles", false, "Keep Puddles", "Keep spawned paint puddles visible for the configured lifetime. Footprints are controlled separately by keepFootprints. Default: false");
+			_keepPuddles = CreateEntry("keepPuddles", false, "Keep Puddles", "Keep paint puddles for the configured lifetime. On the host, their contact effect also stays active so they can keep producing footprints. Footprints are controlled separately by keepFootprints. Default: false");
 			_lifetimeSeconds = CreateEntry("permanentLifetimeSeconds", 86400f, "Lifetime", "Lifetime in seconds for persistent paint. This determines how long paint marks will remain visible. Default: 86400 (24 hours)");
 			_infinitePaintballs = CreateEntry("infinitePaintballs", false, "Infinite Paintballs", "Paintballs are not consumed when thrown. Host setting: edit the host's config before creating the next lobby. Clients use the host value; a host without MarkerMod uses normal consumption. No new save is needed. Default: false");
 			_enablePaintballColorChange = CreateEntry("enablePaintballColorChange", true, "Enable Paintball Color Change", "Allow changing paintball color by right-clicking. When enabled, you can cycle through colors (Red, Yellow, Green, Blue, Orange, Purple, White, Black) by right-clicking while holding a paintball. Default: true");
@@ -42,6 +42,12 @@ namespace MarkerMod.Config
 			_hostInfinitePaintballs = _hostSettings.Register(_infinitePaintballs, false);
 			_hostPreventPaintballSelfDamage = _hostSettings.Register(_preventPaintballSelfDamage, false);
 			_hostAllowLongPaintballThrows = _hostSettings.Register(_allowLongPaintballThrows, false);
+			_hostSettings.EffectiveValuesChanged += LogSessionSettings;
+		}
+
+		private static void LogSessionSettings()
+		{
+			MelonLogger.Msg($"[MarkerMod] Session settings: inLobby={_hostSettings.IsInSession}, host={_hostSettings.IsHost}, infinitePaintballs={InfinitePaintballs} (local={_infinitePaintballs.Value}), keepFootprints={KeepFootprints}, keepPuddles={KeepPuddles}, lifetimeSeconds={PermanentLifetimeSeconds:F0}.");
 		}
 
 		private static MelonPreferences_Entry<T> CreateEntry<T>(string identifier, T defaultValue, string displayName, string description = null)
