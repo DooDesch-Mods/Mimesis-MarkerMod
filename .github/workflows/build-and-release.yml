@@ -1,408 +1,43 @@
 name: Build and Release on Tag
 
 on:
+  push:
+    tags: ['v*']
   workflow_dispatch:
     inputs:
+      operation:
+        description: Verify packages or repair an existing release
+        type: choice
+        options: [verify, nexus, requirements]
+        default: verify
       version:
-        description: Published mod version to repackage for Nexus
-        required: true
+        description: Version X.Y.Z (blank uses the latest changelog section for verify)
         type: string
-      existing_file_uid:
-        description: Set requirements on this existing Nexus file without uploading
         required: false
+      existing_file_uid:
+        description: Existing Nexus version UID for requirements repair
         type: string
-  push:
-    tags:
-      - "v*"
+        required: false
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
-  build:
-    if: inputs.existing_file_uid == ''
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version-check.outputs.version }}
-      notes: ${{ steps.changelog.outputs.notes }}
-      notes_bbcode: ${{ steps.changelog.outputs.notes_bbcode }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Checkout Workspace repository
-        if: github.event_name == 'push'
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ github.repository_owner }}/Mimesis-Workspace
-          path: Workspace
-          ssh-key: ${{ secrets.WORKSPACE_TOKEN }}
-
-      - name: Checkout MimicAPI repository
-        if: github.event_name == 'push'
-        uses: actions/checkout@v4
-        with:
-          # MimicAPI is a public fork that lives on the personal DooDesch account, not the
-          # DooDesch-Mods org the mod repos moved to - so it is hardcoded rather than derived
-          # from github.repository_owner (which would resolve to the non-existent DooDesch-Mods/MimicAPI).
-          repository: DooDesch/MimicAPI
-          path: Workspace/MimicAPI
-
-      - name: Set up .NET
-        if: github.event_name == 'push'
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: "8.0.x"
-
-      - name: Determine version from the tag
-        id: version-check
-        env:
-          REPACKAGE_VERSION: ${{ inputs.version }}
-        run: |
-          # Die Version steht nur im Tag. Die csproj traegt bewusst nur den Platzhalter 0.0.0-dev,
-          # und der Build bekommt die echte Zahl weiter unten als globale MSBuild-Eigenschaft, die
-          # eine Projektdatei nicht ueberschreiben kann.
-          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
-          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            TAG_VERSION="$REPACKAGE_VERSION"
-          fi
-          if ! printf '%s' "$TAG_VERSION" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
-            echo "::error::Tag '$TAG_VERSION' ist keine Version der Form X.Y.Z. Der Ausloeser v* trifft auch vNext und v1.2.3-rc1."
-            exit 1
-          fi
-
-          # Eine echte Zahl in der csproj kann nur von Hand hineingeschrieben worden sein und weicht
-          # spaetestens beim naechsten Release ab.
-          CS_VERSION=$(grep -oPm1 '<Version[^>]*>\K[^<]+' MarkerMod.csproj || true)
-          if [ -n "$CS_VERSION" ] && [ "$CS_VERSION" != "0.0.0-dev" ]; then
-            echo "::error::MarkerMod.csproj traegt die Version '$CS_VERSION'. Sie kommt aus dem Tag; hier gehoert 0.0.0-dev hin."
-            exit 1
-          fi
-
-          MANIFEST_VERSION=$(grep -oPm1 '(?<="version_number": ")[^"]+' thunderstore/manifest.json || true)
-          if [ "$MANIFEST_VERSION" != "0.0.0" ]; then
-            echo "::error::thunderstore/manifest.json traegt version_number '$MANIFEST_VERSION'. Die CI schreibt die echte Zahl beim Release; im Repo gehoert 0.0.0 hin."
-            exit 1
-          fi
-
-          echo "version=$TAG_VERSION" >> $GITHUB_OUTPUT
-
-      - name: Extract release notes from CHANGELOG.md
-        id: changelog
-        run: |
-          # Single source of truth is the hand-maintained CHANGELOG.md. Pull out the section for
-          # this version; it is reused for the GitHub release body and the Nexus file description.
-          VERSION="${{ steps.version-check.outputs.version }}"
-          SECTION=$(awk -v v="$VERSION" 'index($0,"## ["v"]")==1{grab=1;next} index($0,"## [")==1{if(grab)exit} grab{print}' CHANGELOG.md)
-          if [ -z "$SECTION" ]; then
-            echo "::warning::No CHANGELOG.md section found for $VERSION"
-            SECTION="See CHANGELOG.md for details."
-          fi
-          # Markdown notes - GitHub renders Markdown in release bodies.
-          {
-            echo "notes<<CHANGELOG_EOF"
-            echo "$SECTION"
-            echo "CHANGELOG_EOF"
-          } >> "$GITHUB_OUTPUT"
-          # Nexus file descriptions use BBCode, not Markdown. Convert "### Heading" to [b]Heading[/b],
-          # "- item" bullets to [list]/[*], drop inline-code backticks, and join wrapped bullet lines.
-          BBCODE=$(printf '%s\n' "$SECTION" | awk '
-            function flush(){ if(buf!=""){ printf "[*]%s\n", buf; buf="" } }
-            BEGIN{ inlist=0; buf="" }
-            {
-              line=$0; gsub(/`/,"",line); sub(/[ \t]+$/,"",line)
-              if (line ~ /^### /){ flush(); if(inlist){print "[/list]"; inlist=0} h=line; sub(/^### /,"",h); printf "[b]%s[/b]\n", h; next }
-              if (line ~ /^- /){ flush(); if(!inlist){print "[list]"; inlist=1} buf=line; sub(/^- /,"",buf); next }
-              if (line ~ /^[ \t]*$/){ next }
-              sub(/^[ \t]+/,"",line); if(buf!="") buf=buf " " line; else printf "%s\n", line
-            }
-            END{ flush(); if(inlist) print "[/list]" }')
-          {
-            echo "notes_bbcode<<CHANGELOG_EOF"
-            echo "$BBCODE"
-            echo "CHANGELOG_EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Build the project
-        if: github.event_name == 'push'
-        run: dotnet build MarkerMod.csproj --configuration Release /p:Version="${{ steps.version-check.outputs.version }}" /p:WorkspaceLibPath="${{ github.workspace }}/Workspace/lib" /p:GameManagedPath="${{ github.workspace }}/Workspace/lib/game" /p:GameAssemblyPath="${{ github.workspace }}/Workspace/lib/game" /p:MelonLoaderPath="${{ github.workspace }}/Workspace/lib/melonloader" /p:MimicAPIPath="${{ github.workspace }}/Workspace/MimicAPI"
-
-      - name: Download the published DLL for Nexus
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version-check.outputs.version }}
-        run: |
-          set -euo pipefail
-          mkdir -p bin/Release/netstandard2.1
-          gh release download "v$VERSION" --repo "$GITHUB_REPOSITORY" --pattern "MarkerMod.dll" --dir bin/Release/netstandard2.1
-          DIGEST=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$VERSION" --jq '.assets[] | select(.name == "MarkerMod.dll") | .digest')
-          if ! printf '%s' "$DIGEST" | grep -Eq '^sha256:[0-9a-f]{64}$'; then
-            echo "::error::Published MarkerMod.dll has no valid SHA256 digest: $DIGEST"
-            exit 1
-          fi
-          printf '%s  %s\n' "${DIGEST#sha256:}" 'bin/Release/netstandard2.1/MarkerMod.dll' | sha256sum --check
-
-      - name: Prepare release directory
-        run: |
-          mkdir -p release
-          cp bin/Release/netstandard2.1/MarkerMod.dll release/
-          if [ -d "thunderstore" ]; then
-            cp -r thunderstore/* release/ 2>/dev/null || true
-            # Update version in manifest.json if it exists
-            if [ -f "release/manifest.json" ]; then
-              sed -i "s/\"version_number\": \".*\"/\"version_number\": \"${{ steps.version-check.outputs.version }}\"/" release/manifest.json
-            fi
-          fi
-          # Ship the maintained CHANGELOG.md in the package (Thunderstore renders it on the
-          # Changelog tab, so the full version history stays visible).
-          if [ -f "CHANGELOG.md" ]; then
-            cp CHANGELOG.md release/
-          fi
-          if [ -d "thunderstore" ]; then
-            # Recreate README.md as UTF-8 without BOM
-            if [ -f "thunderstore/README.md" ]; then
-              cat thunderstore/README.md | iconv -f UTF-8 -t UTF-8//IGNORE > release/README.md 2>/dev/null || \
-              sed '1s/^\xEF\xBB\xBF//' thunderstore/README.md > release/README.md || \
-              cp thunderstore/README.md release/README.md
-            fi
-          fi
-
-      - name: Create release ZIP
-        run: zip -j "MarkerMod_${{ steps.version-check.outputs.version }}.zip" release/*
-
-      - name: Upload Release ZIP
-        uses: actions/upload-artifact@v4
-        with:
-          name: MarkerMod
-          path: "MarkerMod_${{ steps.version-check.outputs.version }}.zip"
-
-      - name: Prepare Nexus bundle
-        run: |
-          mkdir -p nexus/Mods
-          cp bin/Release/netstandard2.1/MarkerMod.dll nexus/Mods/
-          cp README.md LICENSE.md CHANGELOG.md nexus/
-          (cd nexus && zip -r "../MarkerMod_${{ steps.version-check.outputs.version }}_nexus.zip" .)
-          unzip -t "MarkerMod_${{ steps.version-check.outputs.version }}_nexus.zip"
-
-      - name: Upload Nexus ZIP
-        uses: actions/upload-artifact@v4
-        with:
-          name: MarkerMod-nexus
-          path: "MarkerMod_${{ steps.version-check.outputs.version }}_nexus.zip"
-
   release:
-    if: github.event_name == 'push'
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download built ZIP
-        uses: actions/download-artifact@v4
-        with:
-          name: MarkerMod
-
-      - name: Extract DLL from ZIP
-        run: |
-          unzip -q "MarkerMod_${{ needs.build.outputs.version }}.zip" -d release/
-          ls -la release/
-
-      - name: Download Nexus bundle
-        uses: actions/download-artifact@v4
-        with:
-          name: MarkerMod-nexus
-
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          generate_release_notes: true
-          files: |
-            release/MarkerMod.dll
-            MarkerMod_${{ needs.build.outputs.version }}_nexus.zip
-          body: |
-            ## Changes in ${{ needs.build.outputs.version }}
-
-            ${{ needs.build.outputs.notes }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # Discord renders a `release` webhook as an empty box - no title, no version, no notes. So the embed is
-      # built here, where the version and the changelog section are already known. Skipped when the secret is
-      # not set, so a fork or a repo without the feed just builds and releases.
-      - name: Announce the release in Discord
-        if: ${{ !cancelled() }}
-        env:
-          WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
-          VERSION: ${{ needs.build.outputs.version }}
-          NOTES: ${{ needs.build.outputs.notes }}
-          REPO: ${{ github.repository }}
-          NEXUS_MOD_ID: ${{ vars.NEXUS_MOD_ID }}
-        run: |
-          if [ -z "$WEBHOOK" ]; then echo "DISCORD_RELEASE_WEBHOOK is not set - nothing announced."; exit 0; fi
-
-          SHORT="${REPO#*/}"
-          NAME=$(echo "$SHORT" | sed -E 's/^(ScheduleOne|Palworld|Mimesis)-//')
-          [ -f thunderstore/manifest.json ] && NAME=$(jq -r '.name // empty' thunderstore/manifest.json)
-          [ -z "$NAME" ] && NAME="$SHORT"
-
-          LINKS="[GitHub](https://github.com/$REPO/releases/tag/v$VERSION)"
-          if [ -f thunderstore/manifest.json ]; then
-            LINKS="[Thunderstore](https://thunderstore.io/package/DooDesch/$NAME/) · $LINKS"
-          fi
-
-          # NEXUS_MOD_ID is the global uid, game_id * 2^32 + page_id, and the page id is what the URL wants.
-          # Only Schedule I is mapped, so a repo for another game simply goes without the link.
-          if [ -n "$NEXUS_MOD_ID" ]; then
-            GAME_ID=$(( NEXUS_MOD_ID / 4294967296 ))
-            PAGE_ID=$(( NEXUS_MOD_ID % 4294967296 ))
-            if [ "$GAME_ID" = "7381" ]; then
-              LINKS="[Nexus](https://www.nexusmods.com/schedule1/mods/$PAGE_ID) · $LINKS"
-            fi
-          fi
-
-          case "$SHORT" in
-            ScheduleOne-*) FOOTER="Schedule I · $SHORT" ;;
-            Palworld-*)    FOOTER="Palworld · $SHORT" ;;
-            Mimesis-*)     FOOTER="Mimesis · $SHORT" ;;
-            *)             FOOTER="$SHORT" ;;
-          esac
-
-          # jq builds the JSON so a changelog with quotes, backticks or newlines cannot break the payload.
-          jq -n --arg title "$NAME $VERSION" \
-                --arg url "https://github.com/$REPO/releases/tag/v$VERSION" \
-                --arg desc "$NOTES" \
-                --arg icon "https://raw.githubusercontent.com/$REPO/main/thunderstore/icon.png" \
-                --arg links "$LINKS" \
-                --arg foot "$FOOTER" \
-            '{embeds: [{
-                title: $title,
-                url: $url,
-                description: ($desc | if length > 1400 then .[0:1400] + "\n..." else . end),
-                color: 8256434,
-                thumbnail: {url: $icon},
-                fields: [{name: "Get it", value: $links}],
-                footer: {text: $foot}
-             }]}' > payload.json
-
-          curl -sS -f -X POST -H "Content-Type: application/json" -d @payload.json "$WEBHOOK" \
-            && echo "announced $NAME $VERSION"
-
-  thunderstore:
-    if: github.event_name == 'push'
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download built ZIP
-        uses: actions/download-artifact@v4
-        with:
-          name: MarkerMod
-
-      - name: Extract ZIP for Thunderstore
-        run: |
-          mkdir -p thunderstore-package
-          unzip -q "MarkerMod_${{ needs.build.outputs.version }}.zip" -d thunderstore-package/
-
-
-      - name: Upload to Thunderstore
-        uses: GreenTF/upload-thunderstore-package@v4.3
-        with:
-          token: ${{ secrets.THUNDERSTORE_TOKEN }}
-          community: mimesis
-          namespace: DooDesch
-          name: MarkerMod
-          description: Use paintballs as markers in dungeons. Paintballs create puddles and leave footprints when you walk through them. Without this mod, these effects are useless as they disappear too quickly. MarkerMod makes them into practical markers you can use in dungeons.
-          version: ${{ needs.build.outputs.version }}
-          repo: mimesis.thunderstore.io
-          path: thunderstore-package
-          categories: |
-            Mods
-
-  nexus:
-    outputs:
-      file_uid: ${{ steps.nexus-upload.outputs.file_uid }}
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download Nexus bundle (MarkerMod.dll)
-        uses: actions/download-artifact@v4
-        with:
-          name: MarkerMod-nexus
-
-      - name: Upload to Nexus Mods
-        id: nexus-upload
-        uses: Nexus-Mods/upload-action@v1.0.0-beta.7
-        with:
-          api_key: ${{ secrets.NEXUSMODS_API_KEY }}
-          file_group_id: "7545473"
-          filename: "MarkerMod_${{ needs.build.outputs.version }}_nexus.zip"
-          version: ${{ needs.build.outputs.version }}
-          display_name: "MarkerMod ${{ needs.build.outputs.version }}"
-          description: |
-            [b]Requires [url=https://www.nexusmods.com/mimesis/mods/11]MimicAPI 0.4.2[/url], installed separately.[/b]
-
-            ${{ needs.build.outputs.notes_bbcode }}
-          show_requirements_pop_up: true
-          file_category: main
-          archive_existing_file: true
-      - name: Record the Nexus upload
-        env:
-          FILE_UID: ${{ steps.nexus-upload.outputs.file_uid }}
-        run: |
-          if ! printf '%s' "$FILE_UID" | grep -Eq '^[1-9][0-9]*$'; then
-            echo "::error::Nexus upload did not return a valid file UID: $FILE_UID"
-            exit 1
-          fi
-          echo "Nexus file UID: $FILE_UID" >> "$GITHUB_STEP_SUMMARY"
-
-  nexus-requirements:
-    needs: nexus
-    if: ${{ always() && !cancelled() && (needs.nexus.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.existing_file_uid != '')) }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Require the separate MimicAPI download
-        env:
-          NEXUS_KEY: ${{ secrets.NEXUSMODS_API_KEY }}
-          FILE_UID: ${{ needs.nexus.outputs.file_uid || inputs.existing_file_uid }}
-          FILE_GROUP_ID: "7545473"
-        run: |
-          set -euo pipefail
-          if ! printf '%s' "$FILE_UID" | grep -Eq '^[1-9][0-9]*$'; then
-            echo "::error::Invalid Nexus file UID: $FILE_UID"
-            exit 1
-          fi
-          if [ -z "$NEXUS_KEY" ]; then
-            echo "::error::NEXUSMODS_API_KEY is missing"
-            exit 1
-          fi
-          API=https://api.nexusmods.com/v3
-          curl --fail-with-body --silent --show-error -H "apikey: $NEXUS_KEY" "$API/mod-file-versions/$FILE_UID" > source.json
-          jq -e --arg group "$FILE_GROUP_ID" '.data.file.id == $group' source.json
-          curl --fail-with-body --silent --show-error -H "apikey: $NEXUS_KEY" "$API/mod-file-versions/39329015529509" > mimicapi.json
-          jq -e '.data.id == "39329015529509" and .data.version == "0.4.2"' mimicapi.json
-          curl --fail-with-body --silent --show-error -H "apikey: $NEXUS_KEY" "$API/mod-file-versions/$FILE_UID/dependencies/ranges" > before.json
-          jq '{dependency_definitions: [.dependency_definitions[] | {ranges: [.ranges[] | {min_version_id: .min_version.id, max_version_id: (.max_version.id // null)}]}]}' before.json > existing.json
-          jq '.dependency_definitions |= (if any(.[]; any(.ranges[]; .min_version_id == "39329015529509" and .max_version_id == null)) then . else . + [{ranges: [{min_version_id: "39329015529509", max_version_id: null}]}] end)' existing.json > required.json
-          curl --fail-with-body --silent --show-error -X PUT -H "apikey: $NEXUS_KEY" -H 'Content-Type: application/json' --data-binary @required.json "$API/mod-file-versions/$FILE_UID/dependencies/ranges"
-          curl --fail-with-body --silent --show-error -H "apikey: $NEXUS_KEY" "$API/mod-file-versions/$FILE_UID/dependencies/ranges" > after.json
-          jq '{dependency_definitions: [.dependency_definitions[] | {ranges: [.ranges[] | {min_version_id: .min_version.id, max_version_id: (.max_version.id // null)}]}]}' after.json > confirmed.json
-          diff <(jq -S . required.json) <(jq -S . confirmed.json)
-          curl --fail-with-body --silent --show-error -H "apikey: $NEXUS_KEY" "$API/mod-file-versions/$FILE_UID/dependencies/ranges/materialized" > resolved.json
-          jq -e '.. | objects | select(.id? == "39329015529509")' resolved.json
-          curl --fail-with-body --silent --show-error -H "apikey: $NEXUS_KEY" "$API/mod-files/$FILE_GROUP_ID" > mod-file.json
-          echo "Nexus file $FILE_UID requires MimicAPI 0.4.2 or later; existing file requirements retained." | tee -a "$GITHUB_STEP_SUMMARY"
-
-      - name: Save Nexus requirement receipts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: nexus-requirements
-          path: '*.json'
-          if-no-files-found: error
+    uses: DooDesch-Mods/.github/.github/workflows/mimesis-release.yml@main
+    with:
+      project: MarkerMod.csproj
+      assembly: MarkerMod
+      library: false
+      mimicapi: true
+      thunderstore: true
+      nexus: true
+      api_requirement: true
+      operation: ${{ github.event_name == 'push' && 'publish' || inputs.operation }}
+      version: ${{ inputs.version }}
+      existing_file_uid: ${{ inputs.existing_file_uid }}
+    secrets:
+      WORKSPACE_TOKEN: ${{ secrets.WORKSPACE_TOKEN }}
+      THUNDERSTORE_TOKEN: ${{ secrets.THUNDERSTORE_TOKEN }}
+      NEXUSMODS_API_KEY: ${{ secrets.NEXUSMODS_API_KEY }}
+      DISCORD_RELEASE_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
