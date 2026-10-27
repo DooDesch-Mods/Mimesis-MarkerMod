@@ -4,6 +4,13 @@ All notable changes to MarkerMod are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.5.7] - 2026-10-27
+
+- Persistent paint puddles keep producing footprints after their normal 15-second contact effect expires. Enable keepPuddles on the host. Reported by life520.
+- Updated for MIMESIS 0.4.0. Existing saves can be continued; no new save is needed.
+- Paintballs show an infinity symbol instead of a charge count when the host enables infinite paintballs.
+- The loader log now shows the effective host setting for infinite paintballs when joining a lobby, to help diagnose configuration issues.
+
 ## [1.5.6] - 2026-10-25
 
 - Restore footprints when walking through your own paint puddles with self-damage protection enabled. Reported by life520.
