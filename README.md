@@ -5,10 +5,12 @@
 
 > Turn paintballs into permanent dungeon markers. Puddles and the footprints you leave normally vanish almost instantly - MarkerMod makes them persist so you can mark rooms, paths and dead ends, with optional color cycling and infinite paintballs.
 
-![Version](https://img.shields.io/badge/version-1.5.7-blue)
+![Version](https://img.shields.io/badge/version-1.5.8-blue)
 ![Game](https://img.shields.io/badge/game-MIMESIS-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 ![Status](https://img.shields.io/badge/status-working-brightgreen)
+
+![MarkerMod in MIMESIS](https://raw.githubusercontent.com/DooDesch-Mods/Mimesis-MarkerMod/main/docs/img/header.jpg)
 
 ## Features
 
@@ -17,6 +19,16 @@
 - **Configurable lifetime** - a single setting controls how long persistent paint stays visible, in seconds (default 86400 = 24 hours, minimum 1 second).
 - **Paintball color cycling** - while holding a paintball, right-click to cycle its color through Red, Yellow, Green, Blue, Orange, Purple, White, Black and back to default. The color applies locally to the held item and paint effects (on by default).
 - **Infinite paintballs** - paintballs are not consumed when thrown, so you never run out of markers (off by default). The inventory shows an infinity symbol while the host enables this option.
+
+## Screenshots
+
+![A native paint trail left by walking through paint while holding a rainbow paintball](https://raw.githubusercontent.com/DooDesch-Mods/Mimesis-MarkerMod/main/docs/img/paint-trail.jpg)
+
+A real paint trail created by movement through paint.
+
+![Native paintball inventory with an infinity symbol and a paint trail on the ground](https://raw.githubusercontent.com/DooDesch-Mods/Mimesis-MarkerMod/main/docs/img/infinite-paintballs.jpg)
+
+Enable infinite paintballs on the host to replace the charge count with the native infinity symbol.
 
 ## Requirements
 
@@ -69,6 +81,6 @@ Build with `dotnet build -c Release` in the mod folder. References are resolved 
 
 Author: **DooDesch**. Released under the **MIT License** (Copyright (c) 2025 DooDesch). Source and releases: [github.com/DooDesch-Mods/Mimesis-MarkerMod](https://github.com/DooDesch-Mods/Mimesis-MarkerMod).
 
-## AI disclosure
+## Images
 
-The mod icon is AI-generated.
+Screenshots and the package icon are captured in MIMESIS.
