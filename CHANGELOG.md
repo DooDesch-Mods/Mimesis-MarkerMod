@@ -4,6 +4,13 @@ All notable changes to MarkerMod are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.5.9] - 2026-10-28
+
+### Fixed
+
+- Keep infinite paintballs from losing charges after the tram reaches a dungeon. Reported by life520.
+- Apply the configured lifetime to paint puddles and footprints created during dungeon gameplay.
+
 ## [1.5.8] - 2026-10-28
 
 ### Changed
