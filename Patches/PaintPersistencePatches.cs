@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.Emit;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using MarkerMod.Config;
 using MarkerMod.Managers;
@@ -120,7 +122,9 @@ namespace MarkerMod.Patches
         }
     }
 
-    [HarmonyPatch(typeof(DecalManager.DecalData), nameof(DecalManager.DecalData.CreateDecalData))]
+    [HarmonyPatch(typeof(DecalManager.DecalData), MethodType.Constructor, new[] {
+        typeof(string), typeof(float), typeof(bool), typeof(long), typeof(long), typeof(float),
+        typeof(Vector3), typeof(Vector3), typeof(Transform) })]
     internal static class DecalDataCreatePatch
     {
         [HarmonyPrefix]
@@ -153,16 +157,55 @@ namespace MarkerMod.Patches
         }
         
         [HarmonyPostfix]
-        public static void Postfix(DecalManager.DecalData __result, string pathWithSocket, Transform spawnBase)
+        public static void Postfix(DecalManager.DecalData __instance, string pathWithSocket, Transform spawnBase)
         {
             // Track decal if needed
             bool hasPaintKeyword = !string.IsNullOrEmpty(pathWithSocket) && pathWithSocket.IndexOf("paint", StringComparison.OrdinalIgnoreCase) >= 0;
             bool attachedToActor = spawnBase != null;
             
-            if (MarkerPreferences.KeepFootprints && attachedToActor && hasPaintKeyword && __result != null)
+            if (MarkerPreferences.KeepFootprints && attachedToActor && hasPaintKeyword && __instance != null)
             {
-                PaintPersistenceManager.TrackDecalIfNeeded(__result);
+                PaintPersistenceManager.TrackDecalIfNeeded(__instance);
             }
+        }
+    }
+
+    // Patch the inventory callers so paintball consumption does not depend on a setter detour.
+    [HarmonyPatch]
+    internal static class PaintballDurabilityCallPatch
+    {
+        private static readonly MethodInfo Setter = AccessTools.Method(typeof(EquipmentItemElement), nameof(EquipmentItemElement.SetDurability));
+        private static readonly MethodInfo Apply = AccessTools.Method(typeof(PaintballDurabilityCallPatch), nameof(ApplyDurability));
+
+        private static IEnumerable<MethodBase> TargetMethods()
+        {
+            yield return AccessTools.DeclaredMethod(typeof(InventoryController), nameof(InventoryController.OnUseSkill));
+            yield return AccessTools.DeclaredMethod(typeof(InventoryController), nameof(InventoryController.OnUseSkill_SpawnProjectile));
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void ApplyDurability(EquipmentItemElement item, int durability)
+        {
+            if (MarkerPreferences.InfinitePaintballs && item.ItemMasterID == 2030 && durability < item.RemainDurability)
+                return;
+            item.SetDurability(durability);
+        }
+
+        private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions, MethodBase __originalMethod)
+        {
+            int matches = 0;
+            foreach (var instruction in instructions)
+            {
+                if (instruction.Calls(Setter))
+                {
+                    instruction.opcode = OpCodes.Call;
+                    instruction.operand = Apply;
+                    matches++;
+                }
+                yield return instruction;
+            }
+            if (matches == 0)
+                throw new InvalidOperationException($"Paintball durability patch failed: {__originalMethod.Name} has no durability writes.");
         }
     }
 
