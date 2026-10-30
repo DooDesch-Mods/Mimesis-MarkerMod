@@ -5,7 +5,7 @@
 
 > Turn paintballs into permanent dungeon markers. Puddles and the footprints you leave normally vanish almost instantly - MarkerMod makes them persist so you can mark rooms, paths and dead ends, with optional color cycling and infinite paintballs.
 
-![Version](https://img.shields.io/badge/version-1.5.9-blue)
+![Version](https://img.shields.io/badge/version-1.6.0-blue)
 ![Game](https://img.shields.io/badge/game-MIMESIS-purple)
 ![MelonLoader](https://img.shields.io/badge/MelonLoader-0.7.3+-green)
 ![Status](https://img.shields.io/badge/status-working-brightgreen)
@@ -47,19 +47,25 @@ For Nexus, install [MimicAPI 0.4.3](https://www.nexusmods.com/mimesis/mods/11) s
 
 ## Configuration
 
-Stored in `UserData/MelonPreferences.cfg` under the `MarkerMod` category.
+Stored in `UserData/MelonPreferences.cfg` under `[MarkerMod]`.
 
-Each Steam lobby uses a snapshot of the host's `infinitePaintballs`, `preventPaintballSelfDamage` and `allowLongPaintballThrows` settings. If the host does not have MarkerMod, these gameplay options use vanilla behavior. Footprints, puddle display, display lifetime and color cycling stay local. With `keepPuddles` enabled on the host, puddles also keep their contact effect for the configured lifetime, so players can still pick up paint from them later. Client configuration is not overwritten. Change the host's gameplay configuration before creating the next lobby.
+Gameplay settings follow the lobby host without overwriting saved client preferences. Without the mod on the host, clients use vanilla behavior. Live settings apply after the host changes them through a MelonPreferences UI or reloads the preferences; editing the file alone does not reload it. Use the same current mod version on host and clients for the new options and live updates. Older versions retain their initial legacy snapshot. Invalid new values use the registered default with a warning.
 
-| Option | Description | Default | Values/Range |
-| --- | --- | --- | --- |
-| `keepFootprints` | Keep paint footprints after puddles dry. When enabled, footprints persist even after the puddles have dried up. | `true` | `true` / `false` |
-| `keepPuddles` | Keep paint puddles for the configured lifetime. On the host, their contact effect stays active too. Footprints are controlled separately by `keepFootprints`. | `false` | `true` / `false` |
-| `permanentLifetimeSeconds` | Lifetime in seconds for persistent paint - how long marks remain visible. Values below 1 are clamped up to 1 second at runtime. | `86400` | Any positive number of seconds (min 1; default 86400 = 24h) |
-| `infinitePaintballs` | Paintballs are not consumed when thrown, so you never run out. | `false` | `true` / `false` |
-| `enablePaintballColorChange` | Allow changing paintball color by right-clicking. Cycles through Red, Yellow, Green, Blue, Orange, Purple, White, Black. | `true` | `true` / `false` |
-| `preventPaintballSelfDamage` | Prevent projectile self-hits and self-hits from paint fields. Host rule; the projectile protection also covers other projectiles. | `true` | `true` / `false` |
-| `allowLongPaintballThrows` | Experimental host rule: increase the navmesh search radius for all physics projectiles to reduce early landings. | `false` | `true` / `false` |
+The host controls paint rules, persistence and the palette. `Enabled`, `keepFootprints`, `keepPuddles`, `permanentLifetimeSeconds` and `PaintballColors` apply to the next lobby. Existing timed paint keeps the lifetime assigned when it spawned. Consumption, self-hit protection, color permission and long-throw settings are live. The color-cycle mouse button stays local.
+
+| Option | Default | Range and effect |
+|---|---|---|
+| `Enabled` | `true` | Master switch, next lobby. |
+| `keepFootprints` | `true` | Keep footprints, next lobby. |
+| `keepPuddles` | `false` | Keep puddles and their host contact effect, next lobby. |
+| `permanentLifetimeSeconds` | `86400` | Persistent paint lifetime, minimum 1 second, next lobby. |
+| `infinitePaintballs` | `false` | Prevent charge consumption and show the native infinity symbol. |
+| `enablePaintballColorChange` | `true` | Permit cycling the held paintball's color. Disabling restores its default material. |
+| `preventPaintballSelfDamage` | `true` | Prevent projectile and paint-field self-hits. Projectile protection also covers other projectiles. |
+| `allowLongPaintballThrows` | `false` | Experimental host navmesh search adjustment for physics projectiles. |
+| `LongThrowSnapRadius` | `25` | Positive navmesh search radius used by the experimental option. |
+| `PaintballColors` | Native eight colors | Comma-separated HTML colors, 1-32 entries, next lobby. Default: `#FF0000,#FFFF00,#00FF00,#0000FF,#FF8000,#8000FF,#FFFFFF,#000000`. |
+| `ColorMouseButton` | `1` | Local input: 0 left, 1 right, 2 middle, -1 disables cycling. |
 
 ## Usage
 

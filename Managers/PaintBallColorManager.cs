@@ -3,6 +3,7 @@ using UnityEngine;
 using MimicAPI.GameAPI;
 using MarkerMod.Services;
 using MelonLoader;
+using MarkerMod.Config;
 
 namespace MarkerMod.Managers
 {
@@ -21,6 +22,8 @@ namespace MarkerMod.Managers
         };
 
         private static int currentColorIndex = -1;
+        private static string cachedPaletteText;
+        private static List<Color> cachedPalette;
         private static bool hasColorBeenSelected = false;
         private static readonly HashSet<int> PaintballMasterIDs = new()
         {
@@ -29,12 +32,13 @@ namespace MarkerMod.Managers
 
         internal static void CycleColor()
         {
+            var palette = GetPalette();
             hasColorBeenSelected = true;
             if (currentColorIndex == -1)
             {
                 currentColorIndex = 0;
             }
-            else if (currentColorIndex == ColorPalette.Count - 1)
+            else if (currentColorIndex == palette.Count - 1)
             {
                 currentColorIndex = -1;
             }
@@ -52,15 +56,19 @@ namespace MarkerMod.Managers
 
         internal static Color GetCurrentColor()
         {
+            var palette = GetPalette();
             if (currentColorIndex == -1)
             {
                 return Color.white;
             }
-            return ColorPalette[currentColorIndex];
+            return palette[currentColorIndex];
         }
 
         internal static string GetCurrentColorName()
         {
+            var palette = GetPalette();
+            if (currentColorIndex >= 0 && MarkerPreferences.PaintballColors != MarkerPreferences.DefaultPalette)
+                return "#" + ColorUtility.ToHtmlStringRGBA(palette[currentColorIndex]);
             return currentColorIndex switch
             {
                 -1 => "Default",
@@ -74,6 +82,30 @@ namespace MarkerMod.Managers
                 7 => "Schwarz",
                 _ => "Unbekannt"
             };
+        }
+
+        private static List<Color> GetPalette()
+        {
+            string text = MarkerPreferences.PaintballColors;
+            if (text == MarkerPreferences.DefaultPalette)
+            {
+                if (currentColorIndex >= ColorPalette.Count) currentColorIndex = -1;
+                return ColorPalette;
+            }
+            if (text != cachedPaletteText)
+            {
+                var palette = new List<Color>();
+                foreach (string part in text.Split(','))
+                {
+                    if (!ColorUtility.TryParseHtmlString(part.Trim(), out Color color))
+                        throw new System.InvalidOperationException("Effective paint palette contains an invalid HTML color.");
+                    palette.Add(color);
+                }
+                cachedPalette = palette;
+                cachedPaletteText = text;
+            }
+            if (currentColorIndex >= cachedPalette.Count) currentColorIndex = -1;
+            return cachedPalette;
         }
 
         internal static bool IsPaintball(int itemMasterID)

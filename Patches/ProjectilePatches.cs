@@ -140,10 +140,9 @@ namespace MarkerMod.Patches
     [HarmonyPatch(typeof(VProjectileObject), "HandlePhysicsProj")]
     internal static class VProjectileNavmeshPatch
     {
-        private const float WidenedSnapRadius = 25f;
 
         public static float ResolveSnapRadius(float originalRadius)
-            => MarkerPreferences.AllowLongPaintballThrows ? WidenedSnapRadius : originalRadius;
+            => MarkerPreferences.AllowLongPaintballThrows ? MarkerPreferences.LongThrowSnapRadius : originalRadius;
 
         [HarmonyTranspiler]
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
