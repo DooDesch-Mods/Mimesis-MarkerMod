@@ -4,6 +4,14 @@ All notable changes to MarkerMod are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.6.0] - 2026-10-30
+
+### Changed
+
+- Make paint persistence and color rules follow the host; freeze paint lifetimes and palette until the next lobby.
+- Add a master switch, custom color palette, long-throw search radius and local color-cycle mouse button.
+- Apply consumption, self-hit protection, color permission and long-throw changes live; refresh the native charge display when infinite mode changes.
+
 ## [1.5.9] - 2026-10-28
 
 ### Fixed

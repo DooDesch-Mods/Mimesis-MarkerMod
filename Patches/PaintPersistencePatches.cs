@@ -103,7 +103,7 @@ namespace MarkerMod.Patches
         [HarmonyPrefix]
         public static void Prefix(WorldDecal __instance)
         {
-            if (PaintPersistenceManager.IsPermanentDecal(__instance.decalId))
+            if (MarkerPreferences.KeepFootprints && PaintPersistenceManager.IsPermanentDecal(__instance.decalId))
             {
                 __instance.lifetimeMSec = PaintPersistenceManager.PermanentLifetimeMilliseconds;
                 __instance.fadeoutMSec = 0L;

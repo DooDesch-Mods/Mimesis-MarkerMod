@@ -21,6 +21,11 @@ namespace MarkerMod.Managers
         private static readonly object DecalLock = new();
         private static readonly Func<Hub, DataManager> DataManagerGetter = CreateDataManagerGetter();
 
+        internal static void ResetSession()
+        {
+            lock (DecalLock) PermanentDecalIds.Clear();
+        }
+
         internal static long PermanentLifetimeMilliseconds
         {
             get

@@ -8,6 +8,15 @@ namespace MarkerMod.Patches
     [HarmonyPatch(typeof(UIPrefab_Inventory), nameof(UIPrefab_Inventory.UpdateSlot))]
     internal static class InfinitePaintballDisplayPatch
     {
+        private static readonly System.Reflection.FieldInfo InventoryUi = AccessTools.Field(typeof(GameMainBase), "inventoryui")
+            ?? throw new System.MissingFieldException("GameMainBase", "inventoryui");
+        internal static void Refresh()
+        {
+            var main = Hub.Main;
+            var avatar = main?.GetMyAvatar();
+            if (avatar != null && InventoryUi.GetValue(main) != null) main.UpdateInventoryUI(avatar);
+        }
+
         private static void Postfix(List<InventoryItem> inventoryItems, List<int> visibleSlotIndices,
             List<UIPrefab_Inventory.Slot> ___inventorySlots)
         {

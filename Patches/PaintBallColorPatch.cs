@@ -20,15 +20,23 @@ namespace MarkerMod.Patches
         [HarmonyPostfix]
         public static void Postfix(ProtoActor __instance)
         {
-            if (!MarkerPreferences.EnablePaintballColorChange)
-            {
-                return;
-            }
-
             try
             {
                 if (!__instance.AmIAvatar())
                 {
+                    return;
+                }
+                if (!MarkerPreferences.EnablePaintballColorChange)
+                {
+                    if (lastSelectedItemID != -1)
+                    {
+                        PaintBallColorManager.ResetColorSelection();
+                        object previousInventory = PlayerAPI.GetLocalInventory();
+                        if (previousInventory != null)
+                            PaintBallColorManager.ApplyColorToPaintball(ReflectionHelper.GetPropertyValue(previousInventory, "SelectedItem"));
+                    }
+                    lastSelectedItemID = -1;
+                    wasRightMouseButtonPressedLastFrame = false;
                     return;
                 }
 
@@ -90,7 +98,13 @@ namespace MarkerMod.Patches
                     Mouse mouse = Mouse.current;
                     if (mouse != null)
                     {
-                        bool isRightMouseButtonPressed = mouse.rightButton.isPressed;
+                        bool isRightMouseButtonPressed = MarkerPreferences.ColorMouseButton switch
+                        {
+                            0 => mouse.leftButton.isPressed,
+                            1 => mouse.rightButton.isPressed,
+                            2 => mouse.middleButton.isPressed,
+                            _ => false
+                        };
                         bool wasRightMouseButtonPressedThisFrame = isRightMouseButtonPressed && !wasRightMouseButtonPressedLastFrame;
                         wasRightMouseButtonPressedLastFrame = isRightMouseButtonPressed;
 
