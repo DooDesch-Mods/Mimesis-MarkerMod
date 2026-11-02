@@ -1,145 +1,70 @@
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using UnityEngine;
-using MelonLoader;
 
 namespace MarkerMod.Services
 {
     internal static class MaterialColorService
     {
-        private static readonly Dictionary<string, Material> originalMaterialsCache = new Dictionary<string, Material>();
+        private sealed class RendererColors
+        {
+            internal readonly Dictionary<int, MaterialPropertyBlock> Original = new();
+            internal readonly MaterialPropertyBlock Working = new();
+        }
+
+        // Weak renderer keys let scene-owned renderers and their saved property blocks be collected together.
+        private static readonly ConditionalWeakTable<Renderer, RendererColors> Colors = new();
 
         internal static void ApplyColorToRenderer(Renderer renderer, Color color, bool useDefaultMaterial)
         {
-            if (renderer == null)
+            if (renderer == null) return;
+            Material[] materials = renderer.sharedMaterials;
+            if (useDefaultMaterial)
             {
+                if (!Colors.TryGetValue(renderer, out var previous)) return;
+                foreach (var entry in previous.Original)
+                {
+                    if (entry.Key < materials.Length)
+                        renderer.SetPropertyBlock(entry.Value.isEmpty ? null : entry.Value, entry.Key);
+                }
+                Colors.Remove(renderer);
                 return;
             }
 
-            Material[] materials = renderer.materials;
-            if (materials == null || materials.Length == 0)
-            {
-                return;
-            }
-
+            var state = Colors.GetValue(renderer, _ => new RendererColors());
             for (int i = 0; i < materials.Length; i++)
             {
-                if (materials[i] != null)
+                var material = materials[i];
+                if (material == null) continue;
+                string colorProperty = material.HasProperty("_Color") ? "_Color"
+                    : material.HasProperty("_BaseColor") ? "_BaseColor"
+                    : material.HasProperty("_TintColor") ? "_TintColor" : null;
+                if (colorProperty == null) continue;
+
+                if (!state.Original.ContainsKey(i))
                 {
-                    string materialKey = $"{renderer.GetInstanceID()}_{i}";
-                    Material originalMaterial = GetOrCacheOriginalMaterial(materialKey, materials[i]);
-
-                    if (useDefaultMaterial)
-                    {
-                        materials[i] = new Material(originalMaterial);
-                        continue;
-                    }
-
-                    Material newMaterial = new Material(originalMaterial);
-                    ApplyColorToMaterial(newMaterial, color);
-                    materials[i] = newMaterial;
+                    var original = new MaterialPropertyBlock();
+                    renderer.GetPropertyBlock(original, i);
+                    state.Original.Add(i, original);
                 }
-            }
 
-            renderer.materials = materials;
+                renderer.GetPropertyBlock(state.Working, i);
+                // Indexed blocks override the renderer-wide block; retain its other values when creating one.
+                if (state.Working.isEmpty) renderer.GetPropertyBlock(state.Working);
+                state.Working.SetColor(colorProperty, IsBlackColor(color) ? new Color(0.15f, 0.15f, 0.15f, 1f) : color);
+                if (material.HasProperty("_MainTex")) state.Working.SetTexture("_MainTex", Texture2D.whiteTexture);
+                if (material.HasProperty("_BaseMap")) state.Working.SetTexture("_BaseMap", Texture2D.whiteTexture);
+                renderer.SetPropertyBlock(state.Working, i);
+            }
         }
 
         internal static void ApplyColorToTransform(Transform transform, Color color, bool useDefaultMaterial)
         {
-            if (transform == null)
-            {
-                return;
-            }
-
-            Renderer[] renderers = transform.GetComponentsInChildren<Renderer>(true);
-            if (renderers == null || renderers.Length == 0)
-            {
-                return;
-            }
-
-            foreach (Renderer renderer in renderers)
-            {
+            if (transform == null) return;
+            foreach (var renderer in transform.GetComponentsInChildren<Renderer>(true))
                 ApplyColorToRenderer(renderer, color, useDefaultMaterial);
-            }
         }
 
-        private static Material GetOrCacheOriginalMaterial(string materialKey, Material currentMaterial)
-        {
-            if (!originalMaterialsCache.ContainsKey(materialKey))
-            {
-                Material originalMaterial = new Material(currentMaterial);
-
-                if (originalMaterial.HasProperty("_MainTex") && originalMaterial.GetTexture("_MainTex") == Texture2D.whiteTexture)
-                {
-                    originalMaterial.SetTexture("_MainTex", null);
-                }
-                if (originalMaterial.HasProperty("_BaseMap") && originalMaterial.GetTexture("_BaseMap") == Texture2D.whiteTexture)
-                {
-                    originalMaterial.SetTexture("_BaseMap", null);
-                }
-
-                originalMaterialsCache[materialKey] = originalMaterial;
-                return originalMaterial;
-            }
-
-            return originalMaterialsCache[materialKey];
-        }
-
-        private static void ApplyColorToMaterial(Material material, Color color)
-        {
-            if (material.HasProperty("_Color"))
-            {
-                ReplaceTextureWithWhite(material);
-                if (IsBlackColor(color))
-                {
-                    material.SetColor("_Color", new Color(0.15f, 0.15f, 0.15f, 1f));
-                }
-                else
-                {
-                    material.SetColor("_Color", color);
-                }
-            }
-            else if (material.HasProperty("_BaseColor"))
-            {
-                ReplaceTextureWithWhite(material);
-                if (IsBlackColor(color))
-                {
-                    material.SetColor("_BaseColor", new Color(0.15f, 0.15f, 0.15f, 1f));
-                }
-                else
-                {
-                    material.SetColor("_BaseColor", color);
-                }
-            }
-            else if (material.HasProperty("_TintColor"))
-            {
-                ReplaceTextureWithWhite(material);
-                if (IsBlackColor(color))
-                {
-                    material.SetColor("_TintColor", new Color(0.15f, 0.15f, 0.15f, 1f));
-                }
-                else
-                {
-                    material.SetColor("_TintColor", color);
-                }
-            }
-        }
-
-        private static void ReplaceTextureWithWhite(Material material)
-        {
-            if (material.HasProperty("_MainTex"))
-            {
-                material.SetTexture("_MainTex", Texture2D.whiteTexture);
-            }
-            if (material.HasProperty("_BaseMap"))
-            {
-                material.SetTexture("_BaseMap", Texture2D.whiteTexture);
-            }
-        }
-
-        private static bool IsBlackColor(Color color)
-        {
-            return color.r < 0.1f && color.g < 0.1f && color.b < 0.1f;
-        }
+        private static bool IsBlackColor(Color color) => color.r < 0.1f && color.g < 0.1f && color.b < 0.1f;
     }
 }
-
