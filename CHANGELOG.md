@@ -4,6 +4,13 @@ All notable changes to MarkerMod are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to Semantic Versioning.
 
+## [1.6.1] - 2026-11-02
+
+### Fixed
+
+- Stop creating extra material copies when selecting paintball colors or returning to the native color. Use renderer property overrides and restore the original overrides on reset.
+- Remove the material cache that kept entries for renderers from previous scenes. Found while investigating life520's crash reports; the native crashes are not confirmed fixed.
+
 ## [1.6.0] - 2026-10-30
 
 ### Changed
