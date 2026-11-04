@@ -2,6 +2,8 @@
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/markermod](https://support.doodesch.de/markermod).
 
+[![Discord](https://mods.doodesch.de/img/badge.svg)](https://mods.doodesch.de)
+
 
 > Turn paintballs into permanent dungeon markers. Puddles and the footprints you leave normally vanish almost instantly - MarkerMod makes them persist so you can mark rooms, paths and dead ends, with optional color cycling and infinite paintballs.
 
@@ -82,6 +84,12 @@ Built for Mimesis 0.4.0 / MelonLoader 0.7.3. Requires MimicAPI.
 ## Building (developers)
 
 Build with `dotnet build -c Release` in the mod folder. References are resolved from the shared workspace (`Workspace/lib/game` and `Workspace/lib/melonloader`); MimicAPI is linked as a `ProjectReference` (`Private=false`) and declared via `[assembly: MelonOptionalDependencies("MimicAPI")]`.
+
+## Community
+
+[![DooDesch Mods on Discord](https://mods.doodesch.de/img/card.svg)](https://mods.doodesch.de)
+
+Join the DooDesch Mods Discord: update pings, polls on what comes next, and playtests of new mods.
 
 ## Credits / License
 
